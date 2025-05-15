@@ -1,0 +1,10 @@
+services:
+  keycloak:
+    build: target
+    ports:
+      - "8080:8080"
+    networks:
+      - keycloak-network
+networks:
+  keycloak-network:
+    driver: bridge

@@ -29,79 +29,120 @@ public class MyUserStorageProvider implements UserStorageProvider, UserLookupPro
     public MyUserStorageProvider(KeycloakSession session, ComponentModel model) {
         this.session = session;
         this.model = model;
+        logger.info("MyUserStorageProvider initialized with model ID: " + model.getId());
     }
 
     @Override
     public void close() {
-        // Nothing to close
+        logger.info("MyUserStorageProvider closing");
     }
 
     @Override
     public UserModel getUserByUsername(RealmModel realm, String username) {
-        logger.infof("Called getUserByUsername with: %s", username);
-        logger.infof("-------------------------------Called getUserByUsername with: %s-----------------------------------------------------------------------------", username);
-        if (!HARDCODED_USERNAME.equalsIgnoreCase(username)) return null;
+        logger.infof("getUserByUsername called - Realm: %s, Username: %s", realm.getName(), username);
+        
+        if (!HARDCODED_USERNAME.equalsIgnoreCase(username)) {
+            logger.infof("Username %s not found in our provider", username);
+            return null;
+        }
+        
+        logger.infof("Found user %s in our provider", username);
         return createVirtualUser(realm);
     }
 
     @Override
     public UserModel getUserById(RealmModel realm, String id) {
-        // You can choose any logic here to map the ID to a unique user.
+        logger.infof("getUserById called - Realm: %s, ID: %s", realm.getName(), id);
+        
         String expectedId = model.getId() + "::" + HARDCODED_USERNAME;
-        if (!expectedId.equals(id)) return null;
+        if (!expectedId.equals(id)) {
+            logger.infof("User ID %s not found in our provider", id);
+            return null;
+        }
+        
+        logger.infof("Found user with ID %s in our provider", id);
         return createVirtualUser(realm);
     }
 
     @Override
     public UserModel getUserByEmail(RealmModel realm, String email) {
-        if (HARDCODED_EMAIL.equalsIgnoreCase(email)) {
-            return createVirtualUser(realm);
+        logger.infof("getUserByEmail called - Realm: %s, Email: %s", realm.getName(), email);
+        
+        if (!HARDCODED_EMAIL.equalsIgnoreCase(email)) {
+            logger.infof("Email %s not found in our provider", email);
+            return null;
         }
-        return null;
+        
+        logger.infof("Found user with email %s in our provider", email);
+        return createVirtualUser(realm);
     }
 
     private UserModel createVirtualUser(RealmModel realm) {
-        // Here we use a custom implementation to handle the user ID manually.
+        logger.infof("Creating virtual user for realm: %s", realm.getName());
+        
         AbstractUserAdapterFederatedStorage user = new AbstractUserAdapterFederatedStorage(session, realm, model) {
             @Override
             public String getUsername() {
+                logger.infof("getUsername called, returning: %s", HARDCODED_USERNAME);
                 return HARDCODED_USERNAME;
             }
 
             @Override
             public void setUsername(String username) {
+                logger.infof("setUsername called with: %s (ignored)", username);
                 // no-op
             }
 
             @Override
             public String getId() {
-                return model.getId() + "::" + HARDCODED_USERNAME;  // Unique ID logic
+                String id = model.getId() + "::" + HARDCODED_USERNAME;
+                logger.infof("getId called, returning: %s", id);
+                return id;
             }
         };
+        
         user.setEmail(HARDCODED_EMAIL);
         user.setEnabled(true);
         user.setFirstName("External");
         user.setLastName("User");
+        
+        logger.infof("Virtual user created with username: %s, email: %s", HARDCODED_USERNAME, HARDCODED_EMAIL);
         return user;
     }
 
     @Override
     public boolean supportsCredentialType(String credentialType) {
-        return PasswordCredentialModel.TYPE.equals(credentialType);
+        logger.infof("supportsCredentialType called with: %s", credentialType);
+        boolean supports = PasswordCredentialModel.TYPE.equals(credentialType);
+        logger.infof("Credential type %s supported: %s", credentialType, supports);
+        return supports;
     }
 
     @Override
     public boolean isConfiguredFor(RealmModel realm, UserModel user, String credentialType) {
-        return supportsCredentialType(credentialType);
+        logger.infof("isConfiguredFor called - Realm: %s, User: %s, CredentialType: %s", 
+            realm.getName(), user.getUsername(), credentialType);
+        boolean configured = supportsCredentialType(credentialType);
+        logger.infof("User %s configured for credential type %s: %s", 
+            user.getUsername(), credentialType, configured);
+        return configured;
     }
 
     @Override
     public boolean isValid(RealmModel realm, UserModel user, CredentialInput input) {
-        logger.infof("Validating credentials for: %s with password: %s", user.getUsername(), input.getChallengeResponse());
+        logger.infof("isValid called - Realm: %s, User: %s, CredentialType: %s", 
+            realm.getName(), user.getUsername(), input.getType());
 
-        if (!supportsCredentialType(input.getType())) return false;
+        if (!supportsCredentialType(input.getType())) {
+            logger.infof("Credential type %s not supported", input.getType());
+            return false;
+        }
+
         String inputPassword = input.getChallengeResponse();
-        return HARDCODED_USERNAME.equalsIgnoreCase(user.getUsername())
+        boolean valid = HARDCODED_USERNAME.equalsIgnoreCase(user.getUsername())
                 && HARDCODED_PASSWORD.equals(inputPassword);
+                
+        logger.infof("Password validation for user %s: %s", user.getUsername(), valid);
+        return valid;
     }
 }
