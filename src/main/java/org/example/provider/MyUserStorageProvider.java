@@ -1,8 +1,10 @@
 package org.example.provider;
 
+import org.jboss.logging.Logger;
 import org.keycloak.component.ComponentModel;
 import org.keycloak.credential.CredentialInput;
 import org.keycloak.credential.CredentialInputValidator;
+import org.keycloak.models.GroupModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
@@ -10,26 +12,28 @@ import org.keycloak.models.credential.PasswordCredentialModel;
 import org.keycloak.storage.UserStorageProvider;
 import org.keycloak.storage.adapter.AbstractUserAdapterFederatedStorage;
 import org.keycloak.storage.user.UserLookupProvider;
-import org.jboss.logging.Logger;
+import org.keycloak.storage.user.UserQueryProvider;
 
-/**
- * @author sashank.adhikari on 5/6/2025
- */
-public class MyUserStorageProvider implements UserStorageProvider, UserLookupProvider, CredentialInputValidator {
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
+public class MyUserStorageProvider implements UserStorageProvider, UserLookupProvider, CredentialInputValidator, UserQueryProvider {
 
     private static final Logger logger = Logger.getLogger(MyUserStorageProvider.class);
 
     private final KeycloakSession session;
     private final ComponentModel model;
 
-    private static final String HARDCODED_USERNAME = "external-user";
-    private static final String HARDCODED_PASSWORD = "password123";
-    private static final String HARDCODED_EMAIL = "external@example.com";
-
     public MyUserStorageProvider(KeycloakSession session, ComponentModel model) {
         this.session = session;
         this.model = model;
-        logger.info("MyUserStorageProvider initialized with model ID: " + model.getId());
     }
 
     @Override
@@ -39,110 +43,202 @@ public class MyUserStorageProvider implements UserStorageProvider, UserLookupPro
 
     @Override
     public UserModel getUserByUsername(RealmModel realm, String username) {
-        logger.infof("getUserByUsername called - Realm: %s, Username: %s", realm.getName(), username);
-        
-        if (!HARDCODED_USERNAME.equalsIgnoreCase(username)) {
-            logger.infof("Username %s not found in our provider", username);
-            return null;
-        }
-        
-        logger.infof("Found user %s in our provider", username);
-        return createVirtualUser(realm);
+        logger.debugf("getUserByUsername called - Realm: %s, Username: %s", realm.getName(), username);
+        return fetchUserFromDatabase(realm, "username", username);
     }
 
     @Override
     public UserModel getUserById(RealmModel realm, String id) {
-        logger.infof("getUserById called - Realm: %s, ID: %s", realm.getName(), id);
-        
-        String expectedId = model.getId() + "::" + HARDCODED_USERNAME;
-        if (!expectedId.equals(id)) {
-            logger.infof("User ID %s not found in our provider", id);
-            return null;
-        }
-        
-        logger.infof("Found user with ID %s in our provider", id);
-        return createVirtualUser(realm);
+        logger.debugf("getUserById called - Realm: %s, ID: %s", realm.getName(), id);
+        return fetchUserFromDatabase(realm, "id", id);
     }
 
     @Override
     public UserModel getUserByEmail(RealmModel realm, String email) {
-        logger.infof("getUserByEmail called - Realm: %s, Email: %s", realm.getName(), email);
-        
-        if (!HARDCODED_EMAIL.equalsIgnoreCase(email)) {
-            logger.infof("Email %s not found in our provider", email);
-            return null;
-        }
-        
-        logger.infof("Found user with email %s in our provider", email);
-        return createVirtualUser(realm);
+        logger.debugf("getUserByEmail called - Realm: %s, Email: %s", realm.getName(), email);
+        return fetchUserFromDatabase(realm, "email", email);
     }
 
-    private UserModel createVirtualUser(RealmModel realm) {
-        logger.infof("Creating virtual user for realm: %s", realm.getName());
-        
+    private UserModel fetchUserFromDatabase(RealmModel realm, String field, String value) {
+        logger.debugf("Fetching user from DB by %s = %s", field, value);
+        try (Connection connection = getConnection();
+             PreparedStatement stmt = connection.prepareStatement("SELECT * FROM users WHERE " + field + " = ?")) {
+
+            stmt.setString(1, value);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    logger.debug("User found in DB, mapping to UserModel");
+                    return mapToUserModel(realm, rs);
+                } else {
+                    logger.debug("No user found in DB for " + field + "=" + value);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error fetching user from database", e);
+        }
+        return null;
+    }
+
+    private UserModel mapToUserModel(RealmModel realm, ResultSet rs) throws Exception {
+        logger.debug("Mapping ResultSet row to UserModel");
         AbstractUserAdapterFederatedStorage user = new AbstractUserAdapterFederatedStorage(session, realm, model) {
             @Override
             public String getUsername() {
-                logger.infof("getUsername called, returning: %s", HARDCODED_USERNAME);
-                return HARDCODED_USERNAME;
+                try {
+                    String username = rs.getString("username");
+                    logger.debugf("Mapped username: %s", username);
+                    return username;
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
             }
 
             @Override
             public void setUsername(String username) {
-                logger.infof("setUsername called with: %s (ignored)", username);
                 // no-op
             }
 
             @Override
             public String getId() {
-                String id = model.getId() + "::" + HARDCODED_USERNAME;
-                logger.infof("getId called, returning: %s", id);
-                return id;
+                try {
+                    String providerId = model.getId().toLowerCase();
+                    String userId = rs.getString("id").toLowerCase();
+                    String id = providerId + "::" + userId;
+                    logger.debugf("Mapped user ID: %s", id);
+                    return id;
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
             }
+
         };
-        
-        user.setEmail(HARDCODED_EMAIL);
+
+        String email = rs.getString("email");
+        String firstName = rs.getString("first_name");
+        String lastName = rs.getString("last_name");
+
+        logger.debugf("Setting user email: %s, firstName: %s, lastName: %s", email, firstName, lastName);
+
+        user.setEmail(email);
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
         user.setEnabled(true);
-        user.setFirstName("External");
-        user.setLastName("User");
-        
-        logger.infof("Virtual user created with username: %s, email: %s", HARDCODED_USERNAME, HARDCODED_EMAIL);
+
         return user;
+    }
+
+    private Connection getConnection() throws Exception {
+        String url = model.getConfig().getFirst(MyUserStorageProviderFactory.DATABASE_URL);
+        String user = model.getConfig().getFirst(MyUserStorageProviderFactory.DATABASE_USER);
+        String password = model.getConfig().getFirst(MyUserStorageProviderFactory.DATABASE_PASSWORD);
+
+        logger.debugf("Connecting to DB URL: %s with user: %s", url, user);
+        return DriverManager.getConnection(url, user, password);
     }
 
     @Override
     public boolean supportsCredentialType(String credentialType) {
-        logger.infof("supportsCredentialType called with: %s", credentialType);
-        boolean supports = PasswordCredentialModel.TYPE.equals(credentialType);
-        logger.infof("Credential type %s supported: %s", credentialType, supports);
-        return supports;
+        return PasswordCredentialModel.TYPE.equals(credentialType);
     }
 
     @Override
     public boolean isConfiguredFor(RealmModel realm, UserModel user, String credentialType) {
-        logger.infof("isConfiguredFor called - Realm: %s, User: %s, CredentialType: %s", 
-            realm.getName(), user.getUsername(), credentialType);
-        boolean configured = supportsCredentialType(credentialType);
-        logger.infof("User %s configured for credential type %s: %s", 
-            user.getUsername(), credentialType, configured);
-        return configured;
+        return supportsCredentialType(credentialType);
     }
 
     @Override
     public boolean isValid(RealmModel realm, UserModel user, CredentialInput input) {
-        logger.infof("isValid called - Realm: %s, User: %s, CredentialType: %s", 
-            realm.getName(), user.getUsername(), input.getType());
-
+        logger.debugf("Validating credentials for user %s", user.getUsername());
         if (!supportsCredentialType(input.getType())) {
-            logger.infof("Credential type %s not supported", input.getType());
+            logger.debug("Unsupported credential type: " + input.getType());
             return false;
         }
 
-        String inputPassword = input.getChallengeResponse();
-        boolean valid = HARDCODED_USERNAME.equalsIgnoreCase(user.getUsername())
-                && HARDCODED_PASSWORD.equals(inputPassword);
-                
-        logger.infof("Password validation for user %s: %s", user.getUsername(), valid);
-        return valid;
+        try (Connection connection = getConnection();
+             PreparedStatement stmt = connection.prepareStatement("SELECT password FROM users WHERE username = ?")) {
+
+            stmt.setString(1, user.getUsername());
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    String storedPassword = rs.getString("password");
+                    logger.debug("Comparing passwords");
+                    return input.getChallengeResponse().equals(storedPassword); // Simple compare for testing
+                } else {
+                    logger.debug("No password found for user");
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error validating credentials", e);
+        }
+        return false;
+    }
+
+    @Override
+    public int getUsersCount(RealmModel realm) {
+        logger.debug("Getting users count");
+        try (Connection connection = getConnection();
+             PreparedStatement stmt = connection.prepareStatement("SELECT COUNT(*) FROM users")) {
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    int count = rs.getInt(1);
+                    logger.debugf("Users count: %d", count);
+                    return count;
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error fetching user count", e);
+        }
+        return 0;
+    }
+
+    @Override
+    public Stream<UserModel> searchForUserStream(RealmModel realm, Map<String, String> params, Integer firstResult, Integer maxResults) {
+        String search = params.getOrDefault(UserModel.SEARCH, "");
+        logger.debugf("searchForUserStream called with search=%s, firstResult=%d, maxResults=%d", search, firstResult, maxResults);
+
+        try (Connection connection = getConnection();
+             PreparedStatement stmt = connection.prepareStatement(
+                     "SELECT * FROM users WHERE username LIKE ? OR email LIKE ? LIMIT ? OFFSET ?")) {
+
+            stmt.setString(1, "%" + search + "%");
+            stmt.setString(2, "%" + search + "%");
+            stmt.setInt(3, maxResults == null ? 10 : maxResults);
+            stmt.setInt(4, firstResult == null ? 0 : firstResult);
+
+            ResultSet rs = stmt.executeQuery();
+            logger.debug("Query executed, mapping ResultSet to Stream<UserModel>");
+            return mapToUserModelStream(realm, rs);
+
+        } catch (Exception e) {
+            logger.error("Error searching for users", e);
+            return Stream.empty();
+        }
+    }
+
+    private Stream<UserModel> mapToUserModelStream(RealmModel realm, ResultSet rs) {
+        List<UserModel> list = new ArrayList<>();
+        try {
+            while (rs.next()) {
+                list.add(mapToUserModel(realm, rs));
+            }
+        } catch (Exception e) {
+            logger.error("Error mapping users", e);
+            throw new RuntimeException(e);
+        }
+        return list.stream();
+    }
+
+
+    @Override
+    public Stream<UserModel> getGroupMembersStream(RealmModel realm, GroupModel group, Integer firstResult, Integer maxResults) {
+        logger.debug("getGroupMembersStream called but not implemented");
+        return Stream.empty();
+    }
+
+    @Override
+    public Stream<UserModel> searchForUserByUserAttributeStream(RealmModel realm, String attrName, String attrValue) {
+        logger.debug("searchForUserByUserAttributeStream called but not implemented");
+        return Stream.empty();
     }
 }
