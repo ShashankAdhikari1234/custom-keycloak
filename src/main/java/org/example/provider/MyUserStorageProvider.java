@@ -65,7 +65,7 @@ public class MyUserStorageProvider implements UserStorageProvider, UserLookupPro
     private UserModel fetchUserFromDatabase(RealmModel realm, String field, String value) {
         logger.infof("Fetching user from DB by %s = %s", field, value);
         try (Connection connection = getConnection();
-             PreparedStatement stmt = connection.prepareStatement("SELECT * FROM users WHERE " + "id" + " = ?")) {
+             PreparedStatement stmt = connection.prepareStatement("SELECT * FROM users WHERE " + field + " = ?")) {
 
             stmt.setString(1, value);
             try (ResultSet rs = stmt.executeQuery()) {
@@ -174,6 +174,7 @@ public class MyUserStorageProvider implements UserStorageProvider, UserLookupPro
                     username = rs.getString("username");
                     email = rs.getString("email");
                     firstName = rs.getString("first_name");
+                    lastName = rs.getString("last_name");
                 } catch (SQLException e) {
                     throw new RuntimeException("Error initializing user fields from ResultSet", e);
                 }
