@@ -53,7 +53,9 @@ public class MyUserStorageProvider implements UserStorageProvider, UserLookupPro
     @Override
     public UserModel getUserById(RealmModel realm, String id) {
         logger.infof("getUserById called - Realm: %s, ID: %s", realm.getName(), id);
-        return fetchUserFromDatabase(realm, "id", id);
+        String username = id.substring(id.lastIndexOf(':') + 1);
+
+        return getUserByUsername(realm, username);
     }
 
     @Override
@@ -309,13 +311,14 @@ public class MyUserStorageProvider implements UserStorageProvider, UserLookupPro
         logger.infof("searchForUserStream called with search=%s, firstResult=%d, maxResults=%d", search, firstResult, maxResults);
 
         try (Connection connection = getConnection();
+//             PreparedStatement stmt = connection.prepareStatement(
+//                     "SELECT * FROM users WHERE username LIKE ? OR email LIKE ? LIMIT ? OFFSET ?")) {
              PreparedStatement stmt = connection.prepareStatement(
-                     "SELECT * FROM users WHERE username LIKE ? OR email LIKE ? LIMIT ? OFFSET ?")) {
-
-            stmt.setString(1, "%c%");
-            stmt.setString(2, "%c%");
-            stmt.setInt(3, maxResults == null ? 10 : maxResults);
-            stmt.setInt(4, firstResult == null ? 0 : firstResult);
+                     "SELECT * FROM users")) {
+//            stmt.setString(1, "%c%");
+//            stmt.setString(2, "%c%");
+//            stmt.setInt(3, maxResults == null ? 10 : maxResults);
+//            stmt.setInt(4, firstResult == null ? 0 : firstResult);
 
             ResultSet rs = stmt.executeQuery();
             logger.info("Query executed, mapping ResultSet to Stream<UserModel>");
