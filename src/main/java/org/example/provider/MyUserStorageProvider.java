@@ -25,8 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import static io.smallrye.config._private.ConfigLogging.log;
-
 public class MyUserStorageProvider implements UserStorageProvider, UserLookupProvider, CredentialInputValidator, UserQueryProvider {
 
     private static final Logger logger = Logger.getLogger(MyUserStorageProvider.class);
@@ -184,21 +182,21 @@ public class MyUserStorageProvider implements UserStorageProvider, UserLookupPro
 
             @Override
             public String getUsername() {
-                log.infov("[Keycloak UserModel Adapter] Getting username ....");
+                logger.infov("[Keycloak UserModel Adapter] Getting username ....");
                 System.out.println(realm.getName());
                 return username;
             }
 
             @Override
             public String getEmail() {
-                log.infov("[Keycloak UserModel Adapter] Getting email ....");
+                logger.infov("[Keycloak UserModel Adapter] Getting email ....");
                 System.out.println(realm.getName());
                 return email;
             }
 
             @Override
             public String getFirstName() {
-                log.infov("[Keycloak UserModel Adapter] Getting first name ....");
+                logger.infov("[Keycloak UserModel Adapter] Getting first name ....");
                 System.out.println(realm.getName());
                 return firstName;
             }
@@ -210,13 +208,13 @@ public class MyUserStorageProvider implements UserStorageProvider, UserLookupPro
 
             @Override
             public void setUsername(String username) {
-                log.infov("[Keycloak UserModel Adapter] Setting username: {0}", username);
+                logger.infov("[Keycloak UserModel Adapter] Setting username: {0}", username);
                 this.username = username;
             }
 
             @Override
             public void setEmail(String email) {
-                log.infov("[Keycloak UserModel Adapter] Setting email: email={0}", email);
+                logger.infov("[Keycloak UserModel Adapter] Setting email: email={0}", email);
                 this.email = email;
             }
 
@@ -227,13 +225,13 @@ public class MyUserStorageProvider implements UserStorageProvider, UserLookupPro
 
             @Override
             public Map<String, List<String>> getAttributes() {
-                log.infov("[Keycloak UserModel Adapter] Getting all attributes ....");
+                logger.infov("[Keycloak UserModel Adapter] Getting all attributes ....");
                 return getFederatedStorage().getAttributes(realm, this.getId());
             }
 
             @Override
             public void setAttribute(String name, List<String> values) {
-                log.infov("[Keycloak UserModel Adapter] Setting attribute {0} with values {1}", name, values);
+                logger.infov("[Keycloak UserModel Adapter] Setting attribute {0} with values {1}", name, values);
                 getFederatedStorage().setAttribute(realm, this.getId(), name, values);
             }
         };
