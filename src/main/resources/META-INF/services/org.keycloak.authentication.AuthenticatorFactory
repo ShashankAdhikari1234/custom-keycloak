@@ -1,1 +1,1 @@
-org.example.provider.UsernamePasswordAttributeFormFactory
+org.example.provider.BranchAuthenticatorFactory
