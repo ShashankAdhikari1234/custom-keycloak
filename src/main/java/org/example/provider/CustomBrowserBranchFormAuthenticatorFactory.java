@@ -1,6 +1,5 @@
 package org.example.provider;
 
-import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.authentication.Authenticator;
 import org.keycloak.authentication.AuthenticatorFactory;
@@ -12,15 +11,12 @@ import org.keycloak.provider.ProviderConfigProperty;
 import java.util.Collections;
 import java.util.List;
 
-public class BranchAuthenticatorFactory implements AuthenticatorFactory {
+public class CustomBrowserBranchFormAuthenticatorFactory implements AuthenticatorFactory {
 
-    private static final Logger logger = Logger.getLogger(BranchAuthenticatorFactory.class);
-    public static final String PROVIDER_ID = "branch-auth";
+    public static final String PROVIDER_ID = "branch-form-authenticator";
 
-    // Singleton instance
-    private static final Authenticator SINGLETON = new CustomAuthenticator();
+    private static final CustomBrowserAuthenticator SINGLETON = new CustomBrowserAuthenticator();
 
-    // Only allow REQUIRED or DISABLED in the flow
     private static final AuthenticationExecutionModel.Requirement[] REQUIREMENT_CHOICES = {
             AuthenticationExecutionModel.Requirement.REQUIRED,
             AuthenticationExecutionModel.Requirement.DISABLED
@@ -28,12 +24,12 @@ public class BranchAuthenticatorFactory implements AuthenticatorFactory {
 
     @Override
     public String getDisplayType() {
-        return "Branch Authenticator";
+        return "Username Password Branch Form";
     }
 
     @Override
     public String getReferenceCategory() {
-        return "branch";
+        return "branch-form";
     }
 
     @Override
@@ -48,13 +44,12 @@ public class BranchAuthenticatorFactory implements AuthenticatorFactory {
 
     @Override
     public boolean isUserSetupAllowed() {
-        // returning false means no required user setup required
         return false;
     }
 
     @Override
     public String getHelpText() {
-        return "Verifies the provided branch against the backend database.";
+        return "Custom authenticator with branch field in browser flow.";
     }
 
     @Override
@@ -64,24 +59,17 @@ public class BranchAuthenticatorFactory implements AuthenticatorFactory {
 
     @Override
     public Authenticator create(KeycloakSession session) {
-        logger.infof("BranchAuthenticatorFactory#create() called, returning singleton instance");
         return SINGLETON;
     }
 
     @Override
-    public void init(Config.Scope config) {
-        // any startup init code
-    }
+    public void init(Config.Scope config) {}
 
     @Override
-    public void postInit(KeycloakSessionFactory factory) {
-        // post-init code if needed
-    }
+    public void postInit(KeycloakSessionFactory factory) {}
 
     @Override
-    public void close() {
-        // clean up if necessary
-    }
+    public void close() {}
 
     @Override
     public String getId() {

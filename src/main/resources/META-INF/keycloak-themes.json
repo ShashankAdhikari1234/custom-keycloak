@@ -1,6 +1,8 @@
 {
-  "themes": [{
-    "name": "base-with-attribute",
-    "types": ["login"]
-  }]
+  "themes": [
+    {
+      "name": "custom",
+      "types": [ "login" ]
+    }
+  ]
 }

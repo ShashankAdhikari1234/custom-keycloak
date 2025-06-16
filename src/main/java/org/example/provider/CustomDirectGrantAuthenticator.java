@@ -12,9 +12,9 @@ import jakarta.ws.rs.core.Response;
 
 import java.util.Objects;
 
-public class CustomAuthenticator implements Authenticator {
+public class CustomDirectGrantAuthenticator implements Authenticator {
 
-    private static final Logger logger = Logger.getLogger(CustomAuthenticator.class);
+    private static final Logger logger = Logger.getLogger(CustomDirectGrantAuthenticator.class);
 
     @Override
     public void authenticate(AuthenticationFlowContext context) {
