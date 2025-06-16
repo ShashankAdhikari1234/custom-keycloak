@@ -2,6 +2,26 @@
 <form id="kc-form-branch" action="${context.actionUrl}" method="post" class="form-inline justify-content-center">
     <div class="form-row align-items-center">
         <div class="col-auto mb-2">
+            <label class="sr-only" for="username">Username</label>
+            <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    class="form-control form-control-sm"
+                    placeholder="Username"
+                    required />
+        </div>
+        <div class="col-auto mb-2">
+            <label class="sr-only" for="password">Password</label>
+            <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    class="form-control form-control-sm"
+                    placeholder="Password"
+                    required />
+        </div>
+        <div class="col-auto mb-2">
             <label class="sr-only" for="branch">Branch</label>
             <input
                     type="text"

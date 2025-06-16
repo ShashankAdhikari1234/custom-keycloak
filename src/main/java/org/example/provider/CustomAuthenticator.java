@@ -8,8 +8,8 @@ import org.keycloak.authentication.Authenticator;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
-
 import jakarta.ws.rs.core.Response;
+
 import java.util.Objects;
 
 public class CustomAuthenticator implements Authenticator {
@@ -18,38 +18,54 @@ public class CustomAuthenticator implements Authenticator {
 
     @Override
     public void authenticate(AuthenticationFlowContext context) {
-        logger.info("CustomAuthenticator: presenting branch form");
-        String clientId = context.getAuthenticationSession().getClient().getClientId();
-        String clientSecret = context.getAuthenticationSession().getClient().getSecret();
-        logger.debugf("Client ID: %s", clientId);
-
-        Response challenge = context.form()
-                .setAttribute("client_id",clientId)
-                .setAttribute("client_secret",clientSecret)
-                .createForm("theme/mytheme/login/login.ftl");
-        context.challenge(challenge);
+        MultivaluedMap<String, String> formParams = context.getHttpRequest().getDecodedFormParameters();
+        String branch = formParams.getFirst("branch");
+        logger.info("Branch"+ branch);
+        if (branch == null || branch.trim().isEmpty()) {
+            context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
+            return;
+        }
+        if (!validateBranchFromDb(branch)) {
+            context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
+            return;
+        }
+        context.success();
     }
+
 
     @Override
     public void action(AuthenticationFlowContext context) {
-        MultivaluedMap<String, String> form = context.getHttpRequest().getDecodedFormParameters();
-        String branch = form.getFirst("branch");
-        logger.infof("CustomAuthenticator: submitted branch=%s", branch);
+        MultivaluedMap<String, String> formParams = context.getHttpRequest().getDecodedFormParameters();
+        String branch = formParams.getFirst("branch");
 
-        if (branch == null || !validateBranchFromDb(branch)) {
-            logger.warn("Invalid branch: " + branch);
-            Response challenge = context.form()
-                    .setError("Invalid branch")
-                    .createForm("login-branch.ftl");
-            context.failureChallenge(AuthenticationFlowError.INVALID_CREDENTIALS, challenge);
+        if (branch == null || branch.trim().isEmpty()) {
+            logger.warn("Branch is null or empty in request.");
+            Response error = Response.status(Response.Status.BAD_REQUEST)
+                    .entity("Branch is required")
+                    .type("text/plain")
+                    .build();
+            context.failureChallenge(AuthenticationFlowError.INVALID_CREDENTIALS, error);
             return;
         }
 
+        logger.infof("Validating submitted branch: %s", branch);
+
+        if (!validateBranchFromDb(branch)) {
+            logger.warnf("Invalid branch submitted: %s", branch);
+            Response error = Response.status(Response.Status.UNAUTHORIZED)
+                    .entity("Invalid branch")
+                    .type("text/plain")
+                    .build();
+            context.failureChallenge(AuthenticationFlowError.INVALID_CREDENTIALS, error);
+            return;
+        }
+
+        logger.info("Branch validation successful.");
         context.success();
     }
 
     private boolean validateBranchFromDb(String branch) {
-        // Replace with real DB fetch
+        logger.info("Branch :" +branch);
         return Objects.equals(branch, "HO");
     }
 
@@ -65,11 +81,11 @@ public class CustomAuthenticator implements Authenticator {
 
     @Override
     public void setRequiredActions(KeycloakSession session, RealmModel realm, UserModel user) {
-        // No additional actions
+        // No required actions
     }
 
     @Override
     public void close() {
-        // Nothing to clean up
+        // No cleanup needed
     }
 }
