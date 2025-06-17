@@ -1,2 +1,2 @@
 org.example.provider.CustomApiBranchAuthenticatorFactory
-org.example.provider.CustomBrowserBranchFormAuthenticatorFactory
+org.example.provider.CustomBrowserBranchAuthenticatorFactory

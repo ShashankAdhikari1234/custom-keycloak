@@ -1,3 +1,4 @@
+// src/main/java/org/example/provider/CustomBrowserBranchAuthenticatorFactory.java
 package org.example.provider;
 
 import org.keycloak.Config;
@@ -11,20 +12,13 @@ import org.keycloak.provider.ProviderConfigProperty;
 import java.util.Collections;
 import java.util.List;
 
-public class CustomBrowserBranchFormAuthenticatorFactory implements AuthenticatorFactory {
-
+public class CustomBrowserBranchAuthenticatorFactory implements AuthenticatorFactory {
     public static final String PROVIDER_ID = "branch-form-authenticator";
-
-    private static final CustomBrowserAuthenticator SINGLETON = new CustomBrowserAuthenticator();
-
-    private static final AuthenticationExecutionModel.Requirement[] REQUIREMENT_CHOICES = {
-            AuthenticationExecutionModel.Requirement.REQUIRED,
-            AuthenticationExecutionModel.Requirement.DISABLED
-    };
+    private static final CustomUsernamePasswordBranchForm INSTANCE = new CustomUsernamePasswordBranchForm();
 
     @Override
     public String getDisplayType() {
-        return "Username Password Branch Form";
+        return "Username/Password + Branch";
     }
 
     @Override
@@ -39,7 +33,10 @@ public class CustomBrowserBranchFormAuthenticatorFactory implements Authenticato
 
     @Override
     public AuthenticationExecutionModel.Requirement[] getRequirementChoices() {
-        return REQUIREMENT_CHOICES;
+        return new AuthenticationExecutionModel.Requirement[]{
+                AuthenticationExecutionModel.Requirement.REQUIRED,
+                AuthenticationExecutionModel.Requirement.DISABLED
+        };
     }
 
     @Override
@@ -49,7 +46,7 @@ public class CustomBrowserBranchFormAuthenticatorFactory implements Authenticato
 
     @Override
     public String getHelpText() {
-        return "Custom authenticator with branch field in browser flow.";
+        return "Validates branch field alongside username/password in browser login.";
     }
 
     @Override
@@ -59,17 +56,20 @@ public class CustomBrowserBranchFormAuthenticatorFactory implements Authenticato
 
     @Override
     public Authenticator create(KeycloakSession session) {
-        return SINGLETON;
+        return INSTANCE;
     }
 
     @Override
-    public void init(Config.Scope config) {}
+    public void init(Config.Scope config) {
+    }
 
     @Override
-    public void postInit(KeycloakSessionFactory factory) {}
+    public void postInit(KeycloakSessionFactory factory) {
+    }
 
     @Override
-    public void close() {}
+    public void close() {
+    }
 
     @Override
     public String getId() {
