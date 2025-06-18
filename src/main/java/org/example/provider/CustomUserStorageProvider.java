@@ -74,7 +74,7 @@ public class CustomUserStorageProvider
     }
 
 
-    private UserModel mapToUserModel(RealmModel realm, ResultSet rs) throws Exception {
+    private UserModel mapToUserModel(RealmModel realm, ResultSet rs) {
         logger.info("Mapping ResultSet row to UserModel");
 
         return new AbstractUserAdapterFederatedStorage(session, realm, model) {

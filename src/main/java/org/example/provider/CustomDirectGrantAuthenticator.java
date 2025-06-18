@@ -1,6 +1,8 @@
 package org.example.provider;
 
 import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.core.Response;
+import org.example.utils.CustomValidator;
 import org.jboss.logging.Logger;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.AuthenticationFlowError;
@@ -8,7 +10,6 @@ import org.keycloak.authentication.Authenticator;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
-import jakarta.ws.rs.core.Response;
 
 import java.util.Objects;
 
@@ -20,7 +21,7 @@ public class CustomDirectGrantAuthenticator implements Authenticator {
     public void authenticate(AuthenticationFlowContext context) {
         MultivaluedMap<String, String> formParams = context.getHttpRequest().getDecodedFormParameters();
         String branch = formParams.getFirst("branch");
-        logger.info("Branch"+ branch);
+        logger.info("Branch" + branch);
         if (branch == null || branch.trim().isEmpty()) {
             context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
             return;
@@ -37,8 +38,9 @@ public class CustomDirectGrantAuthenticator implements Authenticator {
     public void action(AuthenticationFlowContext context) {
         MultivaluedMap<String, String> formParams = context.getHttpRequest().getDecodedFormParameters();
         String branch = formParams.getFirst("branch");
-
-        if (branch == null || branch.trim().isEmpty()) {
+        UserModel userDetail = context.getUser();
+        logger.info("Data :" + userDetail.toString());
+        if (branch == null && CustomValidator.validateUserBranch(branch, userDetail)) {
             logger.warn("Branch is null or empty in request.");
             Response error = Response.status(Response.Status.BAD_REQUEST)
                     .entity("Branch is required")
@@ -65,7 +67,7 @@ public class CustomDirectGrantAuthenticator implements Authenticator {
     }
 
     private boolean validateBranchFromDb(String branch) {
-        logger.info("Branch :" +branch);
+        logger.info("Branch :" + branch);
         return Objects.equals(branch, "HO");
     }
 
