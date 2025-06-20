@@ -16,32 +16,26 @@ import java.util.List;
 public class CustomDirectGrantAuthenticator implements Authenticator {
 
     private static final Logger logger = Logger.getLogger(CustomDirectGrantAuthenticator.class);
-    private static final String REQUIRED_BRANCH = "HO";
     private static final String BRANCH_ATTRIBUTE = "branch";
 
     @Override
     public void authenticate(AuthenticationFlowContext context) {
+        MultivaluedMap<String, String> formParams = context.getHttpRequest().getDecodedFormParameters();
+
+        String branch = formParams.getFirst(BRANCH_ATTRIBUTE);
+        if (branch == null || branch.trim().isEmpty()) {
+            context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
+            return;
+        }
         UserModel user = context.getUser();
-        logger.info("User Model :"+user);
-        List<String> branches = getUserBranchAttributes(user);
-
-        logger.infof("Authenticating user [%s] with branches: %s", user.getUsername(), branches);
-
-        if (branches.isEmpty()) {
-            logger.warnf("User [%s] has no branch attribute.", user.getUsername());
+        if (!CustomValidator.validateUserBranch(branch, user)) {
+            logger.warnf("User [%s] branch validation failed. Username: %s",
+                    user.getUsername(), user.getUsername());
             context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
             return;
         }
-
-        if (!CustomValidator.validateUserBranch(REQUIRED_BRANCH, branches)) {
-            logger.warnf("User [%s] branch validation failed. Required: %s, Found: %s",
-                    user.getUsername(), REQUIRED_BRANCH, branches);
-            context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
-            return;
-        }
-
         logger.infof("User [%s] branch validation passed.", user.getUsername());
-        context.success(); // ✅ Use success for Direct Grant
+        context.success();
     }
 
     @Override
@@ -49,9 +43,7 @@ public class CustomDirectGrantAuthenticator implements Authenticator {
 
     }
 
-    private List<String> getUserBranchAttributes(UserModel user) {
-        return user.getAttributes().getOrDefault(BRANCH_ATTRIBUTE, Collections.emptyList());
-    }
+
 
     @Override
     public boolean requiresUser() {

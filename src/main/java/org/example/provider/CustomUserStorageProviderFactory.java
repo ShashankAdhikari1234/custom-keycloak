@@ -1,5 +1,7 @@
 package org.example.provider;
 
+import org.example.config.DbConnectorConfig;
+import org.example.utils.KeyCloakUtils;
 import org.keycloak.component.ComponentModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.provider.ProviderConfigProperty;
@@ -8,20 +10,13 @@ import org.keycloak.storage.UserStorageProviderFactory;
 
 import java.util.List;
 
+import static org.example.constants.Constants.*;
+
 public class CustomUserStorageProviderFactory
         implements UserStorageProviderFactory<CustomUserStorageProvider> {
 
     public static final String PROVIDER_ID = "custom-db-provider";
 
-    static final String DATABASE_URL = "databaseUrl";
-    static final String DATABASE_USER = "databaseUser";
-    static final String DATABASE_PASSWORD = "databasePassword";
-    static final String DATABASE_SCHEMA = "databaseSchema";
-
-    static final String DEFAULT_DATABASE_URL = "jdbc:postgresql://host.docker.internal:5432/keycloak";
-    static final String DEFAULT_DATABASE_USER = "postgres";
-    static final String DEFAULT_DATABASE_PASSWORD = "password";
-    static final String DEFAULT_DATABASE_SCHEMA = "public";
 
     @Override
     public List<ProviderConfigProperty> getConfigProperties() {
@@ -35,14 +30,17 @@ public class CustomUserStorageProviderFactory
 
 
     @Override
+    public CustomUserStorageProvider create(KeycloakSession session, ComponentModel model) {
+        DbConnectorConfig dbConfig = new DbConnectorConfig(model);
+        KeyCloakUtils cloakUtils = new KeyCloakUtils(session, dbConfig,model);
+        return new CustomUserStorageProvider(dbConfig, cloakUtils);
+    }
+    @Override
     public String getId() {
         return PROVIDER_ID;
     }
 
-    @Override
-    public CustomUserStorageProvider create(KeycloakSession session, ComponentModel model) {
-        return new CustomUserStorageProvider(session,model);
-    }
+
 
     @Override
     public void validateConfiguration(KeycloakSession session, org.keycloak.models.RealmModel realm, ComponentModel model)

@@ -8,26 +8,25 @@ package org.example.utils;
 import org.jboss.logging.Logger;
 import org.keycloak.models.UserModel;
 
+import java.util.Collections;
 import java.util.List;
 
 public class CustomValidator {
 
     private static final Logger logger = Logger.getLogger(CustomValidator.class);
+    private static final String BRANCH_ATTRIBUTE = "branch";
 
 
-    public static boolean validateUserBranch(String expectedBranch, List<String> branches) {
+    public static boolean validateUserBranch(String branch, UserModel userModel) {
         logger.info("Validating user branch...");
-
-
-        // Check if the 'branch' attribute exists and contains the expected value
-        if (branches != null && !branches.isEmpty()) {
-            String userBranch = branches.getFirst(); // Assuming 'branch' is a single-valued attribute
-            logger.infof("User's branch: %s, Expected branch: %s", userBranch, expectedBranch);
-            return expectedBranch.equals(userBranch);
+        List<String> branchList = getUserBranchAttributes(userModel);
+        if (branchList.isEmpty()) {
+            return false;
         }
+        return branchList.stream().anyMatch(e -> e.equals(branch));
+    }
 
-        // Log and return false if the 'branch' attribute is not found or is empty
-        logger.warn("Branch attribute not found or is empty.");
-        return false;
+    private static List<String> getUserBranchAttributes(UserModel user) {
+        return user.getAttributes().getOrDefault(BRANCH_ATTRIBUTE, Collections.emptyList());
     }
 }

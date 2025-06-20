@@ -1,158 +1,52 @@
 package org.example.provider;
 
 
+import org.example.config.DbConnectorConfig;
+import org.example.utils.KeyCloakUtils;
 import org.jboss.logging.Logger;
-import org.keycloak.component.ComponentModel;
 import org.keycloak.credential.CredentialInput;
 import org.keycloak.credential.CredentialInputValidator;
 import org.keycloak.models.GroupModel;
-import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.credential.PasswordCredentialModel;
 import org.keycloak.storage.StorageId;
 import org.keycloak.storage.UserStorageProvider;
-import org.keycloak.storage.adapter.AbstractUserAdapterFederatedStorage;
 import org.keycloak.storage.user.UserLookupProvider;
 import org.keycloak.storage.user.UserQueryProvider;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+
 public class CustomUserStorageProvider
         implements UserStorageProvider, UserLookupProvider, CredentialInputValidator, UserQueryProvider {
 
-    private final KeycloakSession session;
-    private final ComponentModel model;
+
+    private final DbConnectorConfig dbConnectorConfig;
+
+    private final KeyCloakUtils cloakUtils;
 
 
     private static final Logger logger = Logger.getLogger(CustomUserStorageProvider.class);
 
-    public CustomUserStorageProvider(KeycloakSession session, ComponentModel model) {
-        this.session = session;
-        this.model = model;
+    public CustomUserStorageProvider(DbConnectorConfig dbConnectorConfig, KeyCloakUtils cloakUtils) {
+        this.dbConnectorConfig = dbConnectorConfig;
+        this.cloakUtils = cloakUtils;
     }
 
-
-
-    private Connection getConnection() throws Exception {
-        String url = model.getConfig().getFirst(CustomUserStorageProviderFactory.DATABASE_URL);
-        String user = model.getConfig().getFirst(CustomUserStorageProviderFactory.DATABASE_USER);
-        String password = model.getConfig().getFirst(CustomUserStorageProviderFactory.DATABASE_PASSWORD);
-
-        logger.infof("Connecting to DB URL: %s with user: %s", url, user);
-        return DriverManager.getConnection(url, user, password);
-    }
 
     @Override
     public UserModel getUserByUsername(RealmModel realm, String username) {
         logger.infof("getUserByUsername called - Realm: %s, Username: %s", realm.getName(), username);
-        return fetchUserFromDatabase(realm, "username", username);
+        return cloakUtils.fetchUserFromDatabase(realm, "username", username);
     }
-
-    private UserModel fetchUserFromDatabase(RealmModel realm, String field, String value) {
-        logger.infof("Fetching user from DB by %s = %s", field, value);
-        try (Connection connection = getConnection();
-             PreparedStatement stmt = connection.prepareStatement("SELECT * FROM users WHERE " + field + " = ?")) {
-
-            stmt.setString(1, value);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    logger.info("User found in DB, mapping to UserModel");
-                    return mapToUserModel(realm, rs);
-                } else {
-                    logger.info("No user found in DB for " + field + "=" + value);
-                }
-            }
-        } catch (Exception e) {
-            logger.error("Error fetching user from database", e);
-        }
-        return null;
-    }
-
-
-    private UserModel mapToUserModel(RealmModel realm, ResultSet rs) {
-        logger.info("Mapping ResultSet row to UserModel");
-
-        return new AbstractUserAdapterFederatedStorage(session, realm, model) {
-
-            private String username;
-            private String email;
-            private String firstName;
-            private String lastName;
-
-            {
-                // Initialize fields from ResultSet during object creation
-                try {
-                    username = rs.getString("username");
-                    email = rs.getString("email");
-                    firstName = rs.getString("first_name");
-                    lastName = rs.getString("last_name");
-                } catch (SQLException e) {
-                    throw new RuntimeException("Error initializing user fields from ResultSet", e);
-                }
-            }
-
-            @Override
-            public String getUsername() {
-                logger.infov("[Keycloak UserModel Adapter] Getting username ....");
-                System.out.println(realm.getName());
-                return username;
-            }
-
-            @Override
-            public String getEmail() {
-                logger.infov("[Keycloak UserModel Adapter] Getting email ....");
-                System.out.println(realm.getName());
-                return email;
-            }
-
-            @Override
-            public String getFirstName() {
-                logger.infov("[Keycloak UserModel Adapter] Getting first name ....");
-                System.out.println(realm.getName());
-                return firstName;
-            }
-
-            @Override
-            public String getLastName() {
-                return lastName;
-            }
-
-            @Override
-            public void setUsername(String username) {
-                logger.infov("[Keycloak UserModel Adapter] Setting username: {0}", username);
-                this.username = username;
-            }
-
-            @Override
-            public void setEmail(String email) {
-                logger.infov("[Keycloak UserModel Adapter] Setting email: email={0}", email);
-                this.email = email;
-            }
-
-            @Override
-            public void setLastName(String lastName) {
-                this.lastName = lastName;
-            }
-
-            @Override
-            public Map<String, List<String>> getAttributes() {
-                logger.infov("[Keycloak UserModel Adapter] Getting all attributes ....");
-                return getFederatedStorage().getAttributes(realm, this.getId());
-            }
-
-            @Override
-            public void setAttribute(String name, List<String> values) {
-                logger.infov("[Keycloak UserModel Adapter] Setting attribute {0} with values {1}", name, values);
-                getFederatedStorage().setAttribute(realm, this.getId(), name, values);
-            }
-        };
-    }
-
 
 
     @Override
@@ -163,8 +57,8 @@ public class CustomUserStorageProvider
 
     @Override
     public UserModel getUserByEmail(RealmModel realm, String email) {
-            logger.infof("getUserByEmail called - Realm: %s, Email: %s", realm.getName(), email);
-            return fetchUserFromDatabase(realm, "email", email);
+        logger.infof("getUserByEmail called - Realm: %s, Email: %s", realm.getName(), email);
+        return cloakUtils.fetchUserFromDatabase(realm, "email", email);
     }
 
 
@@ -183,7 +77,7 @@ public class CustomUserStorageProvider
         if (!supportsCredentialType(input.getType())) return false;
         String username = user.getUsername();
         String provided = input.getChallengeResponse();
-        try (Connection c = getConnection();
+        try (Connection c = dbConnectorConfig.getConnection();
              PreparedStatement st = c.prepareStatement(
                      "SELECT password FROM users WHERE username = ?")) {
             st.setString(1, username);
@@ -200,12 +94,10 @@ public class CustomUserStorageProvider
     }
 
     private boolean verify(String storedHash, String plain) {
-        // Replace with your hash algorithm
         return storedHash.equals(hash(plain));
     }
 
     private String hash(String plain) {
-        // e.g., PBKDF2, bcrypt...
         return plain; // placeholder
     }
 
@@ -214,16 +106,9 @@ public class CustomUserStorageProvider
         String search = params.getOrDefault(UserModel.INCLUDE_SERVICE_ACCOUNT, "");
         logger.infof("searchForUserStream called with search=%s, firstResult=%d, maxResults=%d", search, firstResult, maxResults);
 
-        try (Connection connection = getConnection();
-//             PreparedStatement stmt = connection.prepareStatement(
-//                     "SELECT * FROM users WHERE username LIKE ? OR email LIKE ? LIMIT ? OFFSET ?")) {
+        try (Connection connection = dbConnectorConfig.getConnection();
              PreparedStatement stmt = connection.prepareStatement(
                      "SELECT * FROM users")) {
-//            stmt.setString(1, "%c%");
-//            stmt.setString(2, "%c%");
-//            stmt.setInt(3, maxResults == null ? 10 : maxResults);
-//            stmt.setInt(4, firstResult == null ? 0 : firstResult);
-
             ResultSet rs = stmt.executeQuery();
             logger.info("Query executed, mapping ResultSet to Stream<UserModel>");
             return mapToUserModelStream(realm, rs);
@@ -263,7 +148,7 @@ public class CustomUserStorageProvider
                 logger.info(rowLog.toString());
 
                 // Add the user model to the list
-                list.add(mapToUserModel(realm, rs));
+                list.add(cloakUtils.mapToUserModel(realm, rs));
             }
         } catch (Exception e) {
             logger.error("Error mapping users", e);
